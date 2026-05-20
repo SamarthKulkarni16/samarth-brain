@@ -1,0 +1,7 @@
+sentence-transformers
+supabase
+mistralai
+flask
+flask-cors
+PyPDF2
+python-dotenv
