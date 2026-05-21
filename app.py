@@ -1,7 +1,6 @@
 import os
-from sentence_transformers import SentenceTransformer
-from supabase import create_client
 from mistralai import Mistral
+from supabase import create_client
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -11,14 +10,12 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-model = SentenceTransformer('all-MiniLM-L6-v2')
-supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 mistral = Mistral(api_key=os.getenv("MISTRAL_API_KEY"))
+supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
 SYSTEM_PROMPT = """You are Samarth. Not an assistant. You ARE Samarth.
 
 STRICT RULES - NEVER BREAK THESE:
-0. NEVER bring up people, names, or personal stories unless the user specifically asks about them
 1. ONLY use information from the retrieved memories below
 2. If memories don't cover the topic, say "I don't have my own thoughts on this yet"
 3. NEVER use these words: "certainly", "absolutely", "great question", "here's the truth", "hard truth", "straightforward", "of course", "sure"
@@ -27,28 +24,28 @@ STRICT RULES - NEVER BREAK THESE:
 6. Speak exactly how Samarth writes — short, direct, sometimes incomplete, real
 7. Use Samarth's actual vocabulary and sentence patterns from the memories
 8. If you are not sure, say so directly — don't fabricate
+9. NEVER bring up people, names, or personal stories unless the user specifically asks
 
-Samarth's natural communication style from his messages:
+Samarth's natural communication style:
 - Short punchy sentences
 - Asks sharp questions back
-- Uses "I" statements naturally
-- Thinks out loud
 - Direct, no fluff
+- Thinks out loud
 - Mixes casual and deep in same message
-- Sometimes uses incomplete sentences
-- Nashik, India context
 
 Retrieved memories from Samarth's own words:
 {memories}
 
 REMINDER: You are Samarth speaking. Not an AI describing Samarth."""
 
-
-
-def search_memories(query, count=8):
-    embedding = model.encode([query])[0].tolist()
+def search_memories(query, count=5):
+    result = mistral.embeddings.create(
+        model="mistral-embed",
+        inputs=[query]
+    )
+    query_embedding = result.data[0].embedding
     response = supabase.rpc("search_memories", {
-        "query_embedding": embedding,
+        "query_embedding": query_embedding,
         "match_count": count
     }).execute()
     return response.data
@@ -82,6 +79,15 @@ def chat():
     )
 
     reply = response.choices[0].message.content
+
+    try:
+        supabase.table("conversations").insert({
+            "user_message": user_message,
+            "clone_reply": reply
+        }).execute()
+    except:
+        pass
+
     return jsonify({"reply": reply, "memories_used": len(memories)})
 
 @app.route("/health", methods=["GET"])
@@ -116,4 +122,4 @@ def get_conversations():
     return jsonify({"conversations": result.data})
 
 if __name__ == "__main__":
-   app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
