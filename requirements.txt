@@ -1,7 +1,5 @@
-sentence-transformers
+mistralai==1.2.3
 supabase
-mistralai
 flask
 flask-cors
-PyPDF2
 python-dotenv
