@@ -45,20 +45,33 @@ def search_memories(query, count=5):
     )
     query_embedding = result.data[0].embedding
 
-    memories_response = supabase.rpc("search_memories", {
-        "query_embedding": query_embedding,
-        "match_count": count
-    }).execute()
+    notes_count = max(1, count // 2)
+    memories_count = count - notes_count
 
-    notes_response = supabase.rpc("search_notes", {
-        "query_embedding": query_embedding,
-        "match_count": count
-    }).execute()
+    try:
+        memories_response = supabase.rpc("search_memories", {
+            "query_embedding": query_embedding,
+            "match_count": memories_count
+        }).execute()
+        memories_data = memories_response.data or []
+    except Exception as e:
+        print(f"search_memories RPC failed: {e}")
+        memories_data = []
 
-    combined = (memories_response.data or []) + (notes_response.data or [])
+    try:
+        notes_response = supabase.rpc("search_notes", {
+            "query_embedding": query_embedding,
+            "match_count": notes_count
+        }).execute()
+        notes_data = notes_response.data or []
+    except Exception as e:
+        print(f"search_notes RPC failed: {e}")
+        notes_data = []
+
+    combined = memories_data + notes_data
     combined.sort(key=lambda m: m["similarity"], reverse=True)
 
-    return combined[:count]
+    return combined
 
 @app.route("/chat", methods=["POST"])
 def chat():
