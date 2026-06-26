@@ -44,11 +44,21 @@ def search_memories(query, count=5):
         inputs=[query]
     )
     query_embedding = result.data[0].embedding
-    response = supabase.rpc("search_memories", {
+
+    memories_response = supabase.rpc("search_memories", {
         "query_embedding": query_embedding,
         "match_count": count
     }).execute()
-    return response.data
+
+    notes_response = supabase.rpc("search_notes", {
+        "query_embedding": query_embedding,
+        "match_count": count
+    }).execute()
+
+    combined = (memories_response.data or []) + (notes_response.data or [])
+    combined.sort(key=lambda m: m["similarity"], reverse=True)
+
+    return combined[:count]
 
 @app.route("/chat", methods=["POST"])
 def chat():
@@ -59,7 +69,7 @@ def chat():
     if not user_message:
         return jsonify({"error": "No message"}), 400
 
-    memories = search_memories(user_message)
+    memories = search_memories(user_message, count=10)
     memory_text = "\n\n---\n\n".join([
         f"[Source: {m['source']}]\n{m['content']}"
         for m in memories
